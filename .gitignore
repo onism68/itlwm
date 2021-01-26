@@ -5,3 +5,5 @@ xcuserdata
 xcshareddata
 project.xcworkspace
 FwBinary.cpp
+*.pyc
+MacKernelSDK

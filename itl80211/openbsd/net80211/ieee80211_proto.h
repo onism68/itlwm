@@ -70,8 +70,8 @@ extern	const char * const ieee80211_mgt_subtype_name[];
 extern	const char * const ieee80211_state_name[IEEE80211_S_MAX];
 extern	const char * const ieee80211_phymode_name[];
 
-extern	void ieee80211_proto_attach(struct ifnet *);
-extern	void ieee80211_proto_detach(struct ifnet *);
+extern	void ieee80211_proto_attach(struct _ifnet *);
+extern	void ieee80211_proto_detach(struct _ifnet *);
 
 struct ieee80211_node;
 struct ieee80211_rxinfo;
@@ -79,12 +79,12 @@ struct ieee80211_rsnparams;
 extern	void ieee80211_set_link_state(struct ieee80211com *, int);
 extern	u_int ieee80211_get_hdrlen(const struct ieee80211_frame *);
 extern	int ieee80211_classify(struct ieee80211com *, mbuf_t);
-extern	void ieee80211_inputm(struct ifnet *, mbuf_t,
+extern	void ieee80211_inputm(struct _ifnet *, mbuf_t,
 		struct ieee80211_node *, struct ieee80211_rxinfo *,
 		struct mbuf_list *);
-extern	void ieee80211_input(struct ifnet *, mbuf_t,
+extern	void ieee80211_input(struct _ifnet *, mbuf_t,
 		struct ieee80211_node *, struct ieee80211_rxinfo *);
-extern	int ieee80211_output(struct ifnet *, mbuf_t, struct sockaddr *,
+extern	int ieee80211_output(struct _ifnet *, mbuf_t, struct sockaddr *,
 		struct rtentry *);
 extern	void ieee80211_recv_mgmt(struct ieee80211com *, mbuf_t,
 		struct ieee80211_node *, struct ieee80211_rxinfo *, int);
@@ -94,7 +94,7 @@ extern	void ieee80211_eapol_key_input(struct ieee80211com *, mbuf_t,
 		struct ieee80211_node *);
 extern	void ieee80211_tx_compressed_bar(struct ieee80211com *,
 		struct ieee80211_node *, int, uint16_t);
-extern	mbuf_t ieee80211_encap(struct ifnet *, mbuf_t,
+extern	mbuf_t ieee80211_encap(struct _ifnet *, mbuf_t,
 		struct ieee80211_node **);
 extern	mbuf_t ieee80211_get_rts(struct ieee80211com *,
 		const struct ieee80211_frame *, u_int16_t);
@@ -105,6 +105,7 @@ extern	mbuf_t ieee80211_get_compressed_bar(struct ieee80211com *,
 extern	mbuf_t ieee80211_beacon_alloc(struct ieee80211com *,
 		struct ieee80211_node *);
 extern int ieee80211_save_ie(const u_int8_t *, u_int8_t **);
+extern int ieee80211_save_ie_tlv(const u_int8_t *, u_int8_t **, uint32_t *, uint32_t save_len);
 extern	void ieee80211_eapol_timeout(void *);
 extern	int ieee80211_send_4way_msg1(struct ieee80211com *,
 		struct ieee80211_node *);
@@ -124,7 +125,7 @@ extern	int ieee80211_send_eapol_key_req(struct ieee80211com *,
 extern	int ieee80211_pwrsave(struct ieee80211com *, mbuf_t,
 		struct ieee80211_node *);
 #define	ieee80211_new_state(_ic, _nstate, _arg) \
-	(((_ic)->ic_newstate)((_ic), (_nstate), (_arg)))
+(((_ic)->ic_newstate)((_ic), (_nstate), (_arg))); XYLog("%s %d nstate=%d\n", __FUNCTION__, __LINE__, (_nstate));
 extern	enum ieee80211_edca_ac ieee80211_up_to_ac(struct ieee80211com *, int);
 extern	u_int8_t *ieee80211_add_capinfo(u_int8_t *, struct ieee80211com *,
 		const struct ieee80211_node *);

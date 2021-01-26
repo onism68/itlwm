@@ -95,16 +95,21 @@ int ieee80211_findrate(struct ieee80211com *, enum ieee80211_phymode, int);
 void ieee80211_configure_ampdu_tx(struct ieee80211com *, int);
 
 void
-ieee80211_begin_bgscan(struct ifnet *ifp)
+ieee80211_begin_bgscan(struct _ifnet *ifp)
 {
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     
-    if ((ic->ic_flags & IEEE80211_F_BGSCAN) ||
-        ic->ic_state != IEEE80211_S_RUN || ic->ic_mgt_timer != 0)
+    if (ic->ic_state != IEEE80211_S_RUN || ic->ic_mgt_timer != 0)
         return;
     
     if ((ic->ic_flags & IEEE80211_F_RSNON) && !ic->ic_bss->ni_port_valid)
         return;
+    
+    if ((ic->ic_flags & IEEE80211_F_BGSCAN)) {
+        //clear disable flag, because we need to switch a better wifi now.
+        ic->ic_flags &= ~IEEE80211_F_DISABLE_BG_AUTO_CONNECT;
+        return;
+    }
     
     if (ic->ic_bgscan_start != NULL && ic->ic_bgscan_start(ic) == 0) {
         /*
@@ -117,6 +122,7 @@ ieee80211_begin_bgscan(struct ifnet *ifp)
         ieee80211_free_allnodes(ic, 0 /* keep ic->ic_bss */);
         
         ic->ic_flags |= IEEE80211_F_BGSCAN;
+        ic->ic_flags &= ~IEEE80211_F_DISABLE_BG_AUTO_CONNECT;
         if (ifp->if_flags & IFF_DEBUG)
             XYLog("%s: begin background scan\n", ifp->if_xname);
         
@@ -125,7 +131,7 @@ ieee80211_begin_bgscan(struct ifnet *ifp)
 }
 
 void
-ieee80211_begin_cache_bgscan(struct ifnet *ifp)
+ieee80211_begin_cache_bgscan(struct _ifnet *ifp)
 {
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     struct timeval tv;
@@ -136,6 +142,8 @@ ieee80211_begin_cache_bgscan(struct ifnet *ifp)
     
     if ((ic->ic_flags & IEEE80211_F_RSNON) && !ic->ic_bss->ni_port_valid)
         return;
+    
+    ic->ic_flags |= IEEE80211_F_DISABLE_BG_AUTO_CONNECT;
     
     //if last cache scan is 5 minutes ago, clear the nodes and rescan.
     microtime(&tv);
@@ -153,13 +161,13 @@ ieee80211_begin_cache_bgscan(struct ifnet *ifp)
 void
 ieee80211_bgscan_timeout(void *arg)
 {
-    struct ifnet *ifp = (struct ifnet *)arg;
+    struct _ifnet *ifp = (struct _ifnet *)arg;
     
     ieee80211_begin_bgscan(ifp);
 }
 
 void
-ieee80211_channel_init(struct ifnet *ifp)
+ieee80211_channel_init(struct _ifnet *ifp)
 {
     XYLog("%s\n", __FUNCTION__);
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
@@ -210,7 +218,7 @@ ieee80211_channel_init(struct ifnet *ifp)
 }
 
 void
-ieee80211_ifattach(struct ifnet *ifp)
+ieee80211_ifattach(struct _ifnet *ifp)
 {
     IOLog("ieee80211_ifattach\n");
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
@@ -218,6 +226,11 @@ ieee80211_ifattach(struct ifnet *ifp)
     memcpy(((struct arpcom *)ifp)->ac_enaddr, ic->ic_myaddr,
            ETHER_ADDR_LEN);
     //	ether_ifattach(ifp);
+    if (ifp->if_sadl) {
+        ::free(ifp->if_sadl);
+    }
+    ifp->if_sadl = (struct sockaddr_dl *)::malloc(sizeof(struct sockaddr_dl), 0, 0);
+    memcpy(LLADDR(ifp->if_sadl), ic->ic_myaddr, ETHER_ADDR_LEN);
     
     ifp->if_output = ieee80211_output;
     
@@ -252,7 +265,7 @@ ieee80211_ifattach(struct ifnet *ifp)
 }
 
 void
-ieee80211_ifdetach(struct ifnet *ifp)
+ieee80211_ifdetach(struct _ifnet *ifp)
 {
     XYLog("%s\n", __FUNCTION__);
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
@@ -271,6 +284,9 @@ ieee80211_ifdetach(struct ifnet *ifp)
     if (ifp->if_slowtimo) {
         ifp->if_slowtimo->release();
         ifp->if_slowtimo = NULL;
+    }
+    if (ifp->if_sadl) {
+        ::free(ifp->if_sadl);
     }
     ifp->netStat = NULL;
     ifp->controller = NULL;
@@ -311,7 +327,7 @@ ieee80211_mhz2ieee(u_int freq, u_int flags)
 u_int
 ieee80211_chan2ieee(struct ieee80211com *ic, const struct ieee80211_channel *c)
 {
-    struct ifnet *ifp = &ic->ic_if;
+    struct _ifnet *ifp = &ic->ic_if;
     if (ic->ic_channels <= c && c <= &ic->ic_channels[IEEE80211_CHAN_MAX])
         return c - ic->ic_channels;
     else if (c == IEEE80211_CHAN_ANYC)
@@ -369,7 +385,7 @@ ieee80211_configure_ampdu_tx(struct ieee80211com *ic, int enable)
  * ieee80211_attach and before most anything else.
  */
 void
-ieee80211_media_init(struct ifnet *ifp)
+ieee80211_media_init(struct _ifnet *ifp)
 {
     XYLog("%s\n", __FUNCTION__);
 #define    ADD(_ic, _s, _o) \
@@ -562,11 +578,27 @@ ieee80211_findrate(struct ieee80211com *ic, enum ieee80211_phymode mode,
 #undef IEEERATE
 }
 
+static struct ieee80211_channel *
+findchannel(struct ieee80211_channel chans[], int nchans, uint16_t freq,
+    uint32_t flags)
+{
+    struct ieee80211_channel *c;
+    int i;
+    
+    for (i = 0; i < nchans; i++) {
+        c = &chans[i];
+        if (c->ic_freq == freq &&
+            c->ic_flags == flags)
+            return c;
+    }
+    return NULL;
+}
+
 /*
  * Handle a media change request.
  */
 int
-ieee80211_media_change(struct ifnet *ifp)
+ieee80211_media_change(struct _ifnet *ifp)
 {
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     struct ifmedia_entry *ime;
@@ -778,7 +810,7 @@ ieee80211_media_change(struct ifnet *ifp)
 }
 
 void
-ieee80211_media_status(struct ifnet *ifp, struct ifmediareq *imr)
+ieee80211_media_status(struct _ifnet *ifp, struct ifmediareq *imr)
 {
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     const struct ieee80211_node *ni = NULL;
@@ -847,7 +879,7 @@ ieee80211_media_status(struct ifnet *ifp, struct ifmediareq *imr)
 }
 
 void
-ieee80211_watchdog(struct ifnet *ifp)
+ieee80211_watchdog(struct _ifnet *ifp)
 {
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     
@@ -1040,7 +1072,7 @@ ieee80211_max_basic_rate(struct ieee80211com *ic)
 int
 ieee80211_setmode(struct ieee80211com *ic, enum ieee80211_phymode mode)
 {
-    struct ifnet *ifp = &ic->ic_if;
+    struct _ifnet *ifp = &ic->ic_if;
     static const u_int chanflags[] = {
         0,            /* IEEE80211_MODE_AUTO */
         IEEE80211_CHAN_A,    /* IEEE80211_MODE_11A */
@@ -1124,7 +1156,7 @@ ieee80211_setmode(struct ieee80211com *ic, enum ieee80211_phymode mode)
 }
 
 enum ieee80211_phymode
-ieee80211_next_mode(struct ifnet *ifp)
+ieee80211_next_mode(struct _ifnet *ifp)
 {
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     uint16_t mode;

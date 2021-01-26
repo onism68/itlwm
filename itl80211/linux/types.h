@@ -25,12 +25,10 @@
 
 #include <IOKit/IOTypes.h>
 #include <libkern/OSAtomic.h>
-#include "bitfield.h"
+#include <linux/bitfield.h>
 
 #define local_bh_disable()
 #define local_bh_enable()
-
-#define IFNAMSIZ 32
 
 #define NUM_DEFAULT_KEYS 4
 #define NUM_DEFAULT_MGMT_KEYS 2
@@ -82,7 +80,7 @@
 #endif
 
 #ifndef unlikely
-#include "kernel.h"
+#include <linux/kernel.h>
 #endif
 
 #ifndef WARN_ON_ONCE
@@ -115,7 +113,7 @@
 #define XYLog(fmt, x...)\
 do\
 {\
-IOLog("%s: " fmt, "itlwm", ##x);\
+kprintf("%s: " fmt, "itlwm", ##x);\
 }while(0)
 
 typedef UInt8  u8;

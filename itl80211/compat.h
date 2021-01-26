@@ -29,9 +29,9 @@
 #include <IOKit/IOBufferMemoryDescriptor.h>
 #include <sys/kpi_mbuf.h>
 #include <IOKit/network/IOMbufMemoryCursor.h>
-#include "ieee80211_var.h"
-#include "ieee80211_mira.h"
-#include "ieee80211_amrr.h"
+#include <net80211/ieee80211_var.h>
+#include <net80211/ieee80211_mira.h>
+#include <net80211/ieee80211_amrr.h>
 #include <sys/pcireg.h>
 
 // the following isn't actually used
@@ -57,6 +57,13 @@ MSEC_TO_NSEC(uint64_t milliseconds)
         return UINT64_MAX;
     return milliseconds * 1000000ULL;
 }
+
+#define MHLEN mbuf_get_mhlen()
+#define M_DONTWAIT MBUF_DONTWAIT
+#define M_EXT MBUF_EXT
+#define m_freem mbuf_freem
+#define m_free mbuf_free
+#define m_copydata mbuf_copydata
 
 static inline int
 flsl(long mask)
@@ -151,6 +158,24 @@ typedef struct bus_dmamap* bus_dmamap_t;
 #define IWM_TX_RING_COUNT    256
 #define IWM_TX_RING_LOMARK    192
 #define IWM_TX_RING_HIMARK    224
+
+struct pci_matchid {
+    int        pm_vid;
+    int    pm_pid;
+};
+
+static inline int
+pci_matchbyid(int vid, int pid, const struct pci_matchid *ids, int nent)
+{
+    const struct pci_matchid *pm;
+    int i;
+
+    for (i = 0, pm = ids; i < nent; i++, pm++)
+        if (vid == pm->pm_vid &&
+            pid == pm->pm_pid)
+            return (1);
+    return (0);
+}
 
 /*
  * DMA glue is from iwn

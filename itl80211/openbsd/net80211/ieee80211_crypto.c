@@ -67,7 +67,7 @@ void    ieee80211_derive_pmkid(enum ieee80211_akm, const u_int8_t *,
         const u_int8_t *, const u_int8_t *, u_int8_t *);
 
 void
-ieee80211_crypto_attach(struct ifnet *ifp)
+ieee80211_crypto_attach(struct _ifnet *ifp)
 {
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
 
@@ -88,7 +88,7 @@ ieee80211_crypto_attach(struct ifnet *ifp)
 }
 
 void
-ieee80211_crypto_detach(struct ifnet *ifp)
+ieee80211_crypto_detach(struct _ifnet *ifp)
 {
     XYLog("%s\n", __FUNCTION__);
 	struct ieee80211com *ic = (struct ieee80211com *)ifp;
@@ -175,6 +175,8 @@ ieee80211_set_key(struct ieee80211com *ic, struct ieee80211_node *ni,
 
     if (error == 0)
         k->k_flags |= IEEE80211_KEY_SWCRYPTO;
+    
+    XYLog("%s kid=%d cipher=%d, error=%d\n", __FUNCTION__, k->k_id, k->k_cipher, error);
 
     return error;
 }
@@ -272,8 +274,13 @@ mbuf_t
 ieee80211_encrypt(struct ieee80211com *ic, mbuf_t m0,
     struct ieee80211_key *k)
 {
-	if ((k->k_flags & IEEE80211_KEY_SWCRYPTO) == 0)
-		panic("%s: key unset for sw crypto: %d", __FUNCTION__, k->k_id);
+    if ((k->k_flags & IEEE80211_KEY_SWCRYPTO) == 0) {
+		XYLog("%s: BUG! key unset for sw crypto. k_id: %d k_cipher: %d k_flags: %d\n", __FUNCTION__, k->k_id, k->k_cipher, k->k_flags);
+        mbuf_freem(m0);
+        return NULL;
+    }
+    
+    XYLog("%s kid=%d cipher=%d\n", __FUNCTION__, k->k_id, k->k_cipher);
 
 	switch (k->k_cipher) {
 	case IEEE80211_CIPHER_WEP40:
@@ -305,7 +312,7 @@ ieee80211_decrypt(struct ieee80211com *ic, mbuf_t m0,
 	/* find key for decryption */
     k = ieee80211_get_rxkey(ic, m0, ni);
     if (k == NULL || (k->k_flags & IEEE80211_KEY_SWCRYPTO) == 0) {
-        mbuf_free(m0);
+        mbuf_freem(m0);
         return NULL;
     }
 

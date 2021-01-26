@@ -182,7 +182,7 @@ ieee80211_print_ess(struct ieee80211_ess *ess)
 void
 ieee80211_print_ess_list(struct ieee80211com *ic)
 {
-    struct ifnet		*ifp = &ic->ic_if;
+    struct _ifnet		*ifp = &ic->ic_if;
     struct ieee80211_ess	*ess;
     
     XYLog("%s: known networks\n", ifp->if_xname);
@@ -339,7 +339,7 @@ ieee80211_ess_setwpaparms(struct ieee80211_ess *ess,
     ess->flags |= IEEE80211_F_RSNON;
     
     if (ess->rsnakms &
-        (IEEE80211_AKM_8021X|IEEE80211_WPA_AKM_SHA256_8021X))
+        (IEEE80211_AKM_8021X|IEEE80211_AKM_SHA256_8021X))
         ess->flags |= IEEE80211_JOIN_8021X;
     
     return ENETRESET;
@@ -513,7 +513,7 @@ int
 ieee80211_ess_is_better(struct ieee80211com *ic,
                         struct ieee80211_node *nicur, struct ieee80211_node *nican)
 {
-    struct ifnet		*ifp = &ic->ic_if;
+    struct _ifnet		*ifp = &ic->ic_if;
     int			 score_cur = 0, score_can = 0;
     int			 cur_rssi, can_rssi;
     
@@ -584,7 +584,7 @@ void
 ieee80211_switch_ess(struct ieee80211com *ic)
 {
     XYLog("%s\n", __FUNCTION__);
-    struct ifnet		*ifp = &ic->ic_if;
+    struct _ifnet		*ifp = &ic->ic_if;
     struct ieee80211_ess	*ess, *seless = NULL;
     struct ieee80211_node	*ni, *selni = NULL;
     
@@ -611,7 +611,8 @@ ieee80211_switch_ess(struct ieee80211com *ic)
         if (!ISSET(ic->ic_flags, IEEE80211_F_AUTO_JOIN)) {
             if (ic->ic_des_esslen == ni->ni_esslen &&
                 memcmp(ic->ic_des_essid, ni->ni_essid,
-                       ni->ni_esslen) == 0) {
+                       ni->ni_esslen) == 0 &&
+                ni->ni_esslen > 0) {
                 ieee80211_set_ess(ic, ess, ni);
                 return;
             }
@@ -701,7 +702,7 @@ ieee80211_deselect_ess(struct ieee80211com *ic)
 }
 
 void
-ieee80211_node_attach(struct ifnet *ifp)
+ieee80211_node_attach(struct _ifnet *ifp)
 {
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
 #ifndef IEEE80211_STA_ONLY
@@ -761,7 +762,7 @@ ieee80211_alloc_node_helper(struct ieee80211com *ic)
 }
 
 void
-ieee80211_node_lateattach(struct ifnet *ifp)
+ieee80211_node_lateattach(struct _ifnet *ifp)
 {
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     struct ieee80211_node *ni;
@@ -778,7 +779,7 @@ ieee80211_node_lateattach(struct ifnet *ifp)
 }
 
 void
-ieee80211_node_detach(struct ifnet *ifp)
+ieee80211_node_detach(struct _ifnet *ifp)
 {
     XYLog("%s\n", __FUNCTION__);
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
@@ -813,7 +814,7 @@ ieee80211_node_detach(struct ifnet *ifp)
  * of available channels and the current PHY mode.
  */
 void
-ieee80211_reset_scan(struct ifnet *ifp)
+ieee80211_reset_scan(struct _ifnet *ifp)
 {
     XYLog("%s\n", __FUNCTION__);
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
@@ -842,7 +843,7 @@ ieee80211_node_raise_inact(void *arg, struct ieee80211_node *ni)
  * Begin an active scan.
  */
 void
-ieee80211_begin_scan(struct ifnet *ifp)
+ieee80211_begin_scan(struct _ifnet *ifp)
 {
     XYLog("%s\n", __FUNCTION__);
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
@@ -891,7 +892,7 @@ ieee80211_begin_scan(struct ifnet *ifp)
  * Switch to the next channel marked for scanning.
  */
 void
-ieee80211_next_scan(struct ifnet *ifp)
+ieee80211_next_scan(struct _ifnet *ifp)
 {
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     struct ieee80211_channel *chan;
@@ -928,7 +929,7 @@ ieee80211_create_ibss(struct ieee80211com* ic, struct ieee80211_channel *chan)
 {
     XYLog("%s\n", __FUNCTION__);
     struct ieee80211_node *ni;
-    struct ifnet *ifp = &ic->ic_if;
+    struct _ifnet *ifp = &ic->ic_if;
     
     ni = ic->ic_bss;
     if (ifp->if_flags & IFF_DEBUG)
@@ -1126,31 +1127,37 @@ ieee80211_match_bss(struct ieee80211com *ic, struct ieee80211_node *ni,
             fail |= IEEE80211_NODE_ASSOCFAIL_WPA_PROTO;
     }
     
-    if (ic->ic_if.if_flags & IFF_DEBUG) {
-        DPRINTF(("%s: %c %s%c", ic->ic_if.if_xname, fail ? '-' : '+',
+    if (ic->ic_if.if_flags & IFF_DEBUG && ieee80211_debug) {
+        XYLog("%s: %c %s%c %3d%c %+4d %2dM%c %4s%c %7s%c %3s%c %.*s %s\n",
+              ic->ic_if.if_xname,
+              fail ? '-' : '+',
               ether_sprintf(ni->ni_bssid),
-              fail & IEEE80211_NODE_ASSOCFAIL_BSSID ? '!' : ' '));
-        DPRINTF((" %3d%c", ieee80211_chan2ieee(ic, ni->ni_chan),
-              fail & IEEE80211_NODE_ASSOCFAIL_CHAN ? '!' : ' '));
-        DPRINTF((" %+4d", ni->ni_rssi));
-        DPRINTF((" %2dM%c", (rate & IEEE80211_RATE_VAL) / 2,
-              fail & IEEE80211_NODE_ASSOCFAIL_BASIC_RATE ? '!' : ' '));
-        DPRINTF((" %4s%c",
+              fail & IEEE80211_NODE_ASSOCFAIL_BSSID ? '!' : ' ',
+              
+              ieee80211_chan2ieee(ic, ni->ni_chan),
+              fail & IEEE80211_NODE_ASSOCFAIL_CHAN ? '!' : ' ',
+              
+              ni->ni_rssi,
+              
+              (rate & IEEE80211_RATE_VAL) / 2,
+              fail & IEEE80211_NODE_ASSOCFAIL_BASIC_RATE ? '!' : ' ',
+              
               (ni->ni_capinfo & IEEE80211_CAPINFO_ESS) ? "ess" :
               (ni->ni_capinfo & IEEE80211_CAPINFO_IBSS) ? "ibss" :
               "????",
-              fail & IEEE80211_NODE_ASSOCFAIL_IBSS ? '!' : ' '));
-        DPRINTF((" %7s%c ",
+              fail & IEEE80211_NODE_ASSOCFAIL_IBSS ? '!' : ' ',
+              
               (ni->ni_capinfo & IEEE80211_CAPINFO_PRIVACY) ?
               "privacy" : "no",
-              fail & IEEE80211_NODE_ASSOCFAIL_PRIVACY ? '!' : ' '));
-        DPRINTF((" %3s%c ",
+              fail & IEEE80211_NODE_ASSOCFAIL_PRIVACY ? '!' : ' ',
+              
               (ic->ic_flags & IEEE80211_F_RSNON) ?
               "rsn" : "no",
-              fail & IEEE80211_NODE_ASSOCFAIL_WPA_PROTO ? '!' : ' '));
-        ieee80211_print_essid(ni->ni_essid, ni->ni_esslen);
-        DPRINTF(("%s\n",
-              fail & IEEE80211_NODE_ASSOCFAIL_ESSID ? "!" : ""));
+              fail & IEEE80211_NODE_ASSOCFAIL_WPA_PROTO ? '!' : ' ',
+              
+              ni->ni_esslen + 1,
+              ni->ni_essid,
+              fail & IEEE80211_NODE_ASSOCFAIL_ESSID ? "!" : "");
     }
     
     /* We don't care about unrelated networks during background scans. */
@@ -1174,7 +1181,7 @@ struct ieee80211_node_switch_bss_arg {
 void
 ieee80211_node_switch_bss(struct ieee80211com *ic, struct ieee80211_node *ni)
 {
-    struct ifnet *ifp = &ic->ic_if;
+    struct _ifnet *ifp = &ic->ic_if;
     struct ieee80211_node_switch_bss_arg *sba = (struct ieee80211_node_switch_bss_arg *)ni->ni_unref_arg;
     struct ieee80211_node *curbs, *selbs;
     
@@ -1215,9 +1222,9 @@ ieee80211_node_switch_bss(struct ieee80211com *ic, struct ieee80211_node *ni)
 }
 
 void
-ieee80211_node_join_bss(struct ieee80211com *ic, struct ieee80211_node *selbs)
+ieee80211_node_join_bss(struct ieee80211com *ic, struct ieee80211_node *selbs, int force_reauth)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYLog("%s selbs=%s mac=%s chan=%d rssi=%d protos=%d akms=%d ciphers=%d\n", __FUNCTION__, selbs->ni_essid, ether_sprintf(selbs->ni_bssid), ieee80211_chan2ieee(ic, selbs->ni_chan), selbs->ni_rssi, selbs->ni_rsnprotos, selbs->ni_rsnakms, selbs->ni_rsnciphers);
     enum ieee80211_phymode mode;
     struct ieee80211_node *ni;
     uint32_t assoc_fail = 0;
@@ -1270,24 +1277,30 @@ ieee80211_node_join_bss(struct ieee80211com *ic, struct ieee80211_node *selbs)
                          ic->ic_state == IEEE80211_S_AUTH);
         int mgt = -1;
         
+        XYLog("%s ic_state=%d\n", __FUNCTION__, ic->ic_state);
+        
         timeout_del(&ic->ic_bgscan_timeout);
         ic->ic_flags &= ~IEEE80211_F_BGSCAN;
         
-        /*
-         * After a background scan, we have now switched APs.
-         * Pretend we were just de-authed, which makes
-         * ieee80211_new_state() try to re-auth and thus send
-         * an AUTH frame to our newly selected AP.
-         */
-        if (bgscan)
+        if (!force_reauth) {
+            /*
+             * After a background scan, we have now switched APs.
+             * Pretend we were just de-authed, which makes
+             * ieee80211_new_state() try to re-auth and thus send
+             * an AUTH frame to our newly selected AP.
+             */
+            if (bgscan)
+                mgt = IEEE80211_FC0_SUBTYPE_DEAUTH;
+            /*
+             * If we are trying another AP after the previous one
+             * failed (state transition AUTH->AUTH), ensure that
+             * ieee80211_new_state() tries to send another auth frame.
+             */
+            else if (auth_next)
+                mgt = IEEE80211_FC0_SUBTYPE_AUTH;
+        } else {
             mgt = IEEE80211_FC0_SUBTYPE_DEAUTH;
-        /*
-         * If we are trying another AP after the previous one
-         * failed (state transition AUTH->AUTH), ensure that
-         * ieee80211_new_state() tries to send another auth frame.
-         */
-        else if (auth_next)
-            mgt = IEEE80211_FC0_SUBTYPE_AUTH;
+        }
         
         ieee80211_new_state(ic, IEEE80211_S_AUTH, mgt);
     }
@@ -1348,6 +1361,12 @@ ieee80211_node_choose_bss(struct ieee80211com *ic, int bgscan,
      * (as long as it meets the minimum RSSI threshold) since the 5Ghz band
      * is usually less saturated.
      */
+    if (selbs5 != NULL) {
+        XYLog("%s 5ghz ssid=%s mac=%s rssi=%d\n", __FUNCTION__, selbs5->ni_essid, ether_sprintf(selbs5->ni_bssid), selbs5->ni_rssi);
+    }
+    if (selbs2 != NULL) {
+        XYLog("%s 2ghz ssid=%s mac=%s rssi=%d\n", __FUNCTION__, selbs2->ni_essid, ether_sprintf(selbs2->ni_bssid), selbs2->ni_rssi);
+    }
     if (selbs5 && selbs5->ni_rssi > min_5ghz_rssi)
         selbs = selbs5;
     else if (selbs5 && selbs2)
@@ -1364,7 +1383,7 @@ ieee80211_node_choose_bss(struct ieee80211com *ic, int bgscan,
  * Complete a scan of potential channels.
  */
 void
-ieee80211_end_scan(struct ifnet *ifp)
+ieee80211_end_scan(struct _ifnet *ifp)
 {
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     struct ieee80211_node *ni, *selbs = NULL, *curbs = NULL;
@@ -1454,6 +1473,7 @@ ieee80211_end_scan(struct ifnet *ifp)
         /* AP disappeared? Should not happen. */
         if (selbs == NULL || curbs == NULL) {
             ic->ic_flags &= ~IEEE80211_F_BGSCAN;
+            ic->ic_flags &= ~IEEE80211_F_DISABLE_BG_AUTO_CONNECT;
             goto notfound;
         }
         
@@ -1466,6 +1486,7 @@ ieee80211_end_scan(struct ifnet *ifp)
             if (ic->ic_bgscan_fail < IEEE80211_BGSCAN_FAIL_MAX)
                 ic->ic_bgscan_fail++;
             ic->ic_flags &= ~IEEE80211_F_BGSCAN;
+            ic->ic_flags &= ~IEEE80211_F_DISABLE_BG_AUTO_CONNECT;
             /*
               * HT is negotiated during association so we must use
               * ic_bss to check HT. The nodes tree was re-populated
@@ -1480,6 +1501,12 @@ ieee80211_end_scan(struct ifnet *ifp)
              else
                  ieee80211_setmode(ic,
                      ieee80211_chan2mode(ic, ni->ni_chan));
+            return;
+        }
+        
+        if (ic->ic_flags & IEEE80211_F_DISABLE_BG_AUTO_CONNECT) {
+            ic->ic_flags &= ~IEEE80211_F_BGSCAN;
+            ic->ic_flags &= ~IEEE80211_F_DISABLE_BG_AUTO_CONNECT;
             return;
         }
         
@@ -1616,6 +1643,11 @@ ieee80211_node_cleanup(struct ieee80211com *ic, struct ieee80211_node *ni)
         IOFree(ni->ni_rsnie, 2 + ni->ni_rsnie[1]);
         ni->ni_rsnie = NULL;
     }
+    if (ni->ni_rsnie_tlv != NULL && ni->ni_rsnie_tlv_len > 0) {
+        free(ni->ni_rsnie_tlv);
+        ni->ni_rsnie_tlv = NULL;
+        ni->ni_rsnie_tlv_len = 0;
+    }
     ieee80211_ba_del(ni);
     ieee80211_ba_free(ni);
     IOFree(ni->ni_unref_arg, ni->ni_unref_arg_size);
@@ -1643,6 +1675,11 @@ ieee80211_node_copy(struct ieee80211com *ic,
     dst->ni_rsnie = NULL;
     if (src->ni_rsnie != NULL)
         ieee80211_save_ie(src->ni_rsnie, &dst->ni_rsnie);
+    dst->ni_rsnie_tlv = NULL;
+    dst->ni_rsnie_tlv_len = 0;
+    if (src->ni_rsnie_tlv != NULL) {
+        ieee80211_save_ie_tlv(src->ni_rsnie_tlv, &dst->ni_rsnie_tlv, &dst->ni_rsnie_tlv_len, src->ni_rsnie_tlv_len);
+    }
     ieee80211_node_set_timeouts(dst);
 #ifndef IEEE80211_STA_ONLY
     mq_init(&dst->ni_savedq, IEEE80211_PS_MAX_QUEUE, IPL_NET);
@@ -2094,13 +2131,22 @@ ieee80211_release_node(struct ieee80211com *ic, struct ieee80211_node *ni)
 void
 ieee80211_free_allnodes(struct ieee80211com *ic, int clear_ic_bss)
 {
-    struct ieee80211_node *ni;
+    struct ieee80211_node *ni, *next_ni;
     int s;
     
     DPRINTF(("freeing all nodes\n"));
     s = splnet();
-    while ((ni = RB_MIN(ieee80211_tree, &ic->ic_tree)) != NULL)
+    for (ni = RB_MIN(ieee80211_tree, &ic->ic_tree);
+         ni != NULL; ni = next_ni) {
+        next_ni = RB_NEXT(ieee80211_tree, &ic->ic_tree, ni);
+        if (!clear_ic_bss && ic->ic_bss != NULL) {
+            if (memcmp(ic->ic_bss->ni_bssid, ni->ni_bssid, IEEE80211_ADDR_LEN) == 0
+                && strncmp((const char *)ic->ic_bss->ni_essid, (const char *)ni->ni_essid, IEEE80211_NWID_LEN) == 0) {
+                continue;
+            }
+        }
         ieee80211_free_node(ic, ni);
+    }
     splx(s);
     
     if (clear_ic_bss && ic->ic_bss != NULL)
@@ -2143,7 +2189,7 @@ ieee80211_clean_nodes(struct ieee80211com *ic, int cache_timeout)
     int s;
 #ifndef IEEE80211_STA_ONLY
     int nnodes = 0, nonht = 0, nonhtassoc = 0;
-    struct ifnet *ifp = &ic->ic_if;
+    struct _ifnet *ifp = &ic->ic_if;
     enum ieee80211_htprot htprot = IEEE80211_HTPROT_NONE;
     enum ieee80211_protmode protmode = IEEE80211_PROT_NONE;
 #endif
@@ -3001,7 +3047,7 @@ ieee80211_notify_dtim(struct ieee80211com *ic)
 {
     /* NB: group addressed MSDUs are buffered in ic_bss */
     struct ieee80211_node *ni = ic->ic_bss;
-    struct ifnet *ifp = &ic->ic_if;
+    struct _ifnet *ifp = &ic->ic_if;
     struct ieee80211_frame *wh;
     mbuf_t m;
     

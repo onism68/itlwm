@@ -5,8 +5,21 @@
 //  Created by qcwap on 2020/6/14.
 //  Copyright © 2020 钟先耀. All rights reserved.
 //
+/*
+* Copyright (C) 2020  钟先耀
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 2 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
 
-#include "_mbuf.h"
+#include <sys/_mbuf.h>
 
 #include <IOKit/IOCommandGate.h>
 
@@ -16,7 +29,7 @@ static IOReturn _if_input(OSObject *target, void *arg0, void *arg1, void *arg2, 
 {
     mbuf_t m;
     bool isEmpty = true;
-    struct ifnet *ifq = (struct ifnet *)arg0;
+    struct _ifnet *ifq = (struct _ifnet *)arg0;
     struct mbuf_list *ml = (struct mbuf_list *)arg1;
     
     MBUF_LIST_FOREACH(ml, m) {
@@ -41,7 +54,7 @@ static IOReturn _if_input(OSObject *target, void *arg0, void *arg1, void *arg2, 
     return kIOReturnSuccess;
 }
 
-int if_input(struct ifnet *ifq, struct mbuf_list *ml)
+int if_input(struct _ifnet *ifq, struct mbuf_list *ml)
 {
     return _fCommandGate->runAction((IOCommandGate::Action)_if_input, ifq, ml);
 }

@@ -95,7 +95,7 @@ void ieee80211_set_beacon_miss_threshold(struct ieee80211com *);
 int ieee80211_newstate(struct ieee80211com *, enum ieee80211_state, int);
 
 void
-ieee80211_proto_attach(struct ifnet *ifp)
+ieee80211_proto_attach(struct _ifnet *ifp)
 {
 	struct ieee80211com *ic = (struct ieee80211com *)ifp;
 
@@ -119,7 +119,7 @@ ieee80211_proto_attach(struct ifnet *ifp)
 }
 
 void
-ieee80211_proto_detach(struct ifnet *ifp)
+ieee80211_proto_detach(struct _ifnet *ifp)
 {
     XYLog("%s\n", __FUNCTION__);
 	struct ieee80211com *ic = (struct ieee80211com *)ifp;
@@ -134,13 +134,14 @@ ieee80211_print_essid(const u_int8_t *essid, int len)
 	int i;
 	const u_int8_t *p;
 
-	if (len > IEEE80211_NWID_LEN)
-		len = IEEE80211_NWID_LEN;
-	/* determine printable or not */
-	for (i = 0, p = essid; i < len; i++, p++) {
-		if (*p < ' ' || *p > 0x7e)
-			break;
-	}
+    XYLog("%s\n", essid);
+//	if (len > IEEE80211_NWID_LEN)
+//		len = IEEE80211_NWID_LEN;
+//	/* determine printable or not */
+//	for (i = 0, p = essid; i < len; i++, p++) {
+//		if (*p < ' ' || *p > 0x7e)
+//			break;
+//	}
 //	if (i == len) {
 //		XYLog("\"");
 //		for (i = 0, p = essid; i < len; i++, p++)
@@ -495,15 +496,26 @@ ieee80211_setkeysdone(struct ieee80211com *ic)
 
 	/* install GTK */
 	kid = (ic->ic_def_txkey == 1) ? 2 : 1;
-	if ((*ic->ic_set_key)(ic, ic->ic_bss, &ic->ic_nw_keys[kid]) == 0)
-		ic->ic_def_txkey = kid;
+    switch ((*ic->ic_set_key)(ic, ic->ic_bss, &ic->ic_nw_keys[kid])) {
+        case 0:
+        case EBUSY:
+            ic->ic_def_txkey = kid;
+            break;
+        default:
+            break;
+    }
 
 	if (ic->ic_caps & IEEE80211_C_MFP) {
 		/* install IGTK */
 		kid = (ic->ic_igtk_kid == 4) ? 5 : 4;
-		if ((*ic->ic_set_key)(ic, ic->ic_bss,
-		    &ic->ic_nw_keys[kid]) == 0)
-			ic->ic_igtk_kid = kid;
+        switch ((*ic->ic_set_key)(ic, ic->ic_bss, &ic->ic_nw_keys[kid])) {
+            case 0:
+            case EBUSY:
+                ic->ic_igtk_kid = kid;
+                break;
+            default:
+                break;
+        }
 	}
 }
 
@@ -700,15 +712,9 @@ ieee80211_addba_request(struct ieee80211com *ic, struct ieee80211_node *ni,
 	ba->ba_params =
 	    (ba->ba_winsize << IEEE80211_ADDBA_BUFSZ_SHIFT) |
 	    (tid << IEEE80211_ADDBA_TID_SHIFT);
-#if 0
-	/*
-	 * XXX A-MSDUs inside A-MPDUs expose a problem with bad TCP connection
-	 * sharing behaviour. One connection eats all available bandwidth
-	 * while others stall. Leave this disabled for now to give packets
-	 * from disparate connections better chances of interleaving.
-	 */
-	ba->ba_params |= IEEE80211_ADDBA_AMSDU;
-#endif
+    if (ic->ic_caps & IEEE80211_C_AMSDU_IN_AMPDU) {
+        ba->ba_params |= IEEE80211_ADDBA_AMSDU;
+    }
 	if ((ic->ic_htcaps & IEEE80211_HTCAP_DELAYEDBA) == 0)
 		/* immediate BA */
 		ba->ba_params |= IEEE80211_ADDBA_BA_POLICY;
@@ -773,7 +779,7 @@ void
 ieee80211_auth_open_confirm(struct ieee80211com *ic,
     struct ieee80211_node *ni, uint16_t seq)
 {
-	struct ifnet *ifp = &ic->ic_if;
+	struct _ifnet *ifp = &ic->ic_if;
 
 	IEEE80211_SEND_MGMT(ic, ni, IEEE80211_FC0_SUBTYPE_AUTH, seq + 1);
 	if (ifp->if_flags & IFF_DEBUG)
@@ -791,7 +797,7 @@ ieee80211_try_another_bss(struct ieee80211com *ic)
 {
     XYLog("%s\n", __FUNCTION__);
 	struct ieee80211_node *curbs, *selbs;
-	struct ifnet *ifp = &ic->ic_if;
+	struct _ifnet *ifp = &ic->ic_if;
 
 	/* Don't select our current AP again. */
 	curbs = ieee80211_find_node(ic, ic->ic_bss->ni_macaddr);
@@ -834,7 +840,7 @@ ieee80211_auth_open(struct ieee80211com *ic, const struct ieee80211_frame *wh,
     u_int16_t status)
 {
     XYLog("%s\n", __FUNCTION__);
-	struct ifnet *ifp = &ic->ic_if;
+	struct _ifnet *ifp = &ic->ic_if;
 	switch (ic->ic_opmode) {
 #ifndef IEEE80211_STA_ONLY
 	case IEEE80211_M_IBSS:
@@ -933,7 +939,7 @@ ieee80211_auth_open(struct ieee80211com *ic, const struct ieee80211_frame *wh,
 void
 ieee80211_set_beacon_miss_threshold(struct ieee80211com *ic)
 {
-	struct ifnet *ifp = &ic->ic_if;
+	struct _ifnet *ifp = &ic->ic_if;
 
 	/*
 	 * Scale the missed beacon counter threshold to the AP's actual
@@ -999,7 +1005,7 @@ int
 ieee80211_newstate(struct ieee80211com *ic, enum ieee80211_state nstate,
     int mgt)
 {
-	struct ifnet *ifp = &ic->ic_if;
+	struct _ifnet *ifp = &ic->ic_if;
 	struct ieee80211_node *ni;
 	enum ieee80211_state ostate;
 	u_int rate;
@@ -1271,7 +1277,11 @@ justcleanup:
 				    (ni->ni_flags & IEEE80211_NODE_HT) ?
 					" HT enabled" : "");
 			}
+#ifdef AIRPORT
+			{
+#else
 			if (!(ic->ic_flags & IEEE80211_F_RSNON)) {
+#endif
 				/*
 				 * NB: When RSN is enabled, we defer setting
 				 * the link up until the port is valid.
@@ -1293,7 +1303,7 @@ justcleanup:
 void
 ieee80211_set_link_state(struct ieee80211com *ic, int nstate)
 {
-	struct ifnet *ifp = &ic->ic_if;
+	struct _ifnet *ifp = &ic->ic_if;
     int link_state;
     XYLog("%s nstate=%d, old_state=%d\n", __FUNCTION__, nstate, ifp->if_link_state);
     

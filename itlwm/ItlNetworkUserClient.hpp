@@ -20,7 +20,7 @@
 #include <IOKit/IOBufferMemoryDescriptor.h>
 #include <IOKit/network/IOEthernetInterface.h>
 #include "itlwm.hpp"
-#include "Common.h"
+#include <ClientKit/Common.h>
 
 typedef IOReturn (*IOControlMethodAction)(OSObject * target, void *data, bool isSet);
 
@@ -57,8 +57,9 @@ private:
     task_t fTask;
     itlwm *fDriver;
     IOEthernetInterface *fInf;
-    struct ifnet *fIfp;
-    struct iwm_softc *fSoft;
+    struct _ifnet *fIfp;
+    ItlDriverController *fDriverController;
+    ItlDriverInfo *fDriverInfo;
     
 protected:
     bool fScanResultWrapping;

@@ -11,7 +11,7 @@
 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 * GNU General Public License for more details.
 */
-/*    $OpenBSD: ieee80211_output.c,v 1.129 2020/03/06 11:54:49 stsp Exp $    */
+/*    $OpenBSD: ieee80211_output.c,v 1.132 2020/12/08 15:52:04 stsp Exp $    */
 /*    $NetBSD: ieee80211_output.c,v 1.13 2004/05/31 11:02:55 dyoung Exp $    */
 
 /*-
@@ -74,7 +74,7 @@
 #include <net80211/ieee80211_var.h>
 #include <net80211/ieee80211_priv.h>
 
-int	ieee80211_mgmt_output(struct ifnet *, struct ieee80211_node *,
+int	ieee80211_mgmt_output(struct _ifnet *, struct ieee80211_node *,
 	    mbuf_t, int);
 int	ieee80211_can_use_ampdu(struct ieee80211com *,
 	    struct ieee80211_node *);
@@ -121,7 +121,7 @@ mbuf_t ieee80211_get_action(struct ieee80211com *,
  * if the mbuf has been tagged with a 802.11 data link type.
  */
 int
-ieee80211_output(struct ifnet *ifp, mbuf_t m, struct sockaddr *dst,
+ieee80211_output(struct _ifnet *ifp, mbuf_t m, struct sockaddr *dst,
     struct rtentry *rt)
 {
     XYLog("%s 啊啊啊啊\n", __FUNCTION__);
@@ -177,7 +177,7 @@ ieee80211_output(struct ifnet *ifp, mbuf_t m, struct sockaddr *dst,
  * reference (and potentially free'ing up any associated storage).
  */
 int
-ieee80211_mgmt_output(struct ifnet *ifp, struct ieee80211_node *ni,
+ieee80211_mgmt_output(struct _ifnet *ifp, struct ieee80211_node *ni,
     mbuf_t m, int type)
 {
 	struct ieee80211com *ic = (struct ieee80211com *)ifp;
@@ -415,33 +415,33 @@ ieee80211_classify(struct ieee80211com *ic, mbuf_t m)
 	if (m->m_flags & M_VLANTAG)	/* use VLAN 802.1D user-priority */
 		return EVL_PRIOFTAG(m->m_pkthdr.ether_vtag);
 #endif
-	mbuf_copydata(m, 0, sizeof(eh), (caddr_t)&eh);
-        if (eh.ether_type == htons(ETHERTYPE_IP)) {
-            struct ip ip;
-            mbuf_copydata(m, sizeof(eh), sizeof(ip), (caddr_t)&ip);
-            if (ip.ip_v != 4)
-                return 0;
-            ds_field = ip.ip_tos;
-        }
-    #ifdef INET6
-        else if (eh.ether_type == htons(ETHERTYPE_IPV6)) {
-            struct ip6_hdr ip6;
-            u_int32_t flowlabel;
-            mbuf_copydata(m, sizeof(eh), sizeof(ip6), (caddr_t)&ip6);
-            flowlabel = ntohl(ip6.ip6_flow);
-            if ((flowlabel >> 28) != 6)
-                return 0;
-            ds_field = (flowlabel >> 20) & 0xff;
-        }
-    #endif    /* INET6 */
-        else    /* neither IPv4 nor IPv6 */
+    mbuf_copydata(m, 0, sizeof(eh), (caddr_t)&eh);
+    if (eh.ether_type == htons(ETHERTYPE_IP)) {
+        struct ip ip;
+        mbuf_copydata(m, sizeof(eh), sizeof(ip), (caddr_t)&ip);
+        if (ip.ip_v != 4)
             return 0;
+        ds_field = ip.ip_tos;
+    }
+#ifdef INET6
+    else if (eh.ether_type == htons(ETHERTYPE_IPV6)) {
+        struct ip6_hdr ip6;
+        u_int32_t flowlabel;
+        mbuf_copydata(m, sizeof(eh), sizeof(ip6), (caddr_t)&ip6);
+        flowlabel = ntohl(ip6.ip6_flow);
+        if ((flowlabel >> 28) != 6)
+            return 0;
+        ds_field = (flowlabel >> 20) & 0xff;
+    }
+#endif    /* INET6 */
+    else    /* neither IPv4 nor IPv6 */
+        return 0;
 
-        /*
-         * Map Differentiated Services Codepoint field (see RFC2474).
-         * Preserves backward compatibility with IP Precedence field.
-         */
-        switch (ds_field & 0xfc) {
+    /*
+     * Map Differentiated Services Codepoint field (see RFC2474).
+     * Preserves backward compatibility with IP Precedence field.
+     */
+    switch (ds_field & 0xfc) {
         case IPTOS_PREC_PRIORITY:
             return EDCA_AC_VI;
         case IPTOS_PREC_IMMEDIATE:
@@ -454,26 +454,7 @@ ieee80211_classify(struct ieee80211com *ic, mbuf_t m)
             return EDCA_AC_VO;
         default:
             return EDCA_AC_BE;
-        }
-
-	/*
-	 * Map Differentiated Services Codepoint field (see RFC2474).
-	 * Preserves backward compatibility with IP Precedence field.
-	 */
-	switch (ds_field & 0xfc) {
-	case IPTOS_PREC_PRIORITY:
-		return EDCA_AC_VI;
-	case IPTOS_PREC_IMMEDIATE:
-		return EDCA_AC_BK;
-	case IPTOS_PREC_FLASH:
-	case IPTOS_PREC_FLASHOVERRIDE:
-	case IPTOS_PREC_CRITIC_ECP:
-	case IPTOS_PREC_INTERNETCONTROL:
-	case IPTOS_PREC_NETCONTROL:
-		return EDCA_AC_VO;
-	default:
-		return EDCA_AC_BE;
-	}
+    }
 }
 
 int
@@ -500,7 +481,7 @@ void
 ieee80211_tx_compressed_bar(struct ieee80211com *ic, struct ieee80211_node *ni,
     int tid, uint16_t ssn)
 {
-	struct ifnet *ifp = &ic->ic_if;
+	struct _ifnet *ifp = &ic->ic_if;
 	mbuf_t m;
 
 	m = ieee80211_get_compressed_bar(ic, ni, tid, ssn);
@@ -524,7 +505,7 @@ ieee80211_tx_compressed_bar(struct ieee80211com *ic, struct ieee80211_node *ni,
  *     maintain that.
  */
 mbuf_t
-ieee80211_encap(struct ifnet *ifp, mbuf_t m, struct ieee80211_node **pni)
+ieee80211_encap(struct _ifnet *ifp, mbuf_t m, struct ieee80211_node **pni)
 {
 	struct ieee80211com *ic = (struct ieee80211com *)ifp;
 	struct ether_header eh;
@@ -978,7 +959,7 @@ ieee80211_add_rsn_body(u_int8_t *frm, struct ieee80211com *ic,
 {
 	const u_int8_t *oui = wpa ? MICROSOFT_OUI : IEEE80211_OUI;
 	u_int8_t *pcount;
-	u_int16_t count;
+    u_int16_t count, rsncaps;
 
 	/* write Version field */
     LE_WRITE_2(frm, 1); frm += 2;
@@ -1054,7 +1035,16 @@ ieee80211_add_rsn_body(u_int8_t *frm, struct ieee80211com *ic,
         return frm;
 
     /* write RSN Capabilities field */
-    LE_WRITE_2(frm, ni->ni_rsncaps); frm += 2;
+    rsncaps = (ni->ni_rsncaps & (IEEE80211_RSNCAP_PTKSA_RCNT_MASK |
+        IEEE80211_RSNCAP_GTKSA_RCNT_MASK));
+    if (ic->ic_caps & IEEE80211_C_MFP) {
+        rsncaps |= IEEE80211_RSNCAP_MFPC;
+        if (ic->ic_flags & IEEE80211_F_MFPR)
+            rsncaps |= IEEE80211_RSNCAP_MFPR;
+    }
+    if (ic->ic_flags & IEEE80211_F_PBAR)
+        rsncaps |= IEEE80211_RSNCAP_PBAC;
+    LE_WRITE_2(frm, rsncaps); frm += 2;
 
     if (ni->ni_flags & IEEE80211_NODE_PMKID) {
         /* write PMKID Count field */
@@ -1445,13 +1435,29 @@ ieee80211_get_assoc_req(struct ieee80211com *ic, struct ieee80211_node *ni,
 	if (rs->rs_nrates > IEEE80211_RATE_SIZE)
 		frm = ieee80211_add_xrates(frm, rs);
 	if ((ic->ic_flags & IEEE80211_F_RSNON) &&
-	    (ni->ni_rsnprotos & IEEE80211_PROTO_RSN))
+		(ni->ni_rsnprotos & IEEE80211_PROTO_RSN)) {
+#ifdef AIRPORT
+		if (ic->ic_rsn_ie_override[1] > 0) {
+			memcpy(frm, ic->ic_rsn_ie_override, 2 + ic->ic_rsn_ie_override[1]);
+			frm += 2 + ic->ic_rsn_ie_override[1];
+		}
+		else
+#endif
 		frm = ieee80211_add_rsn(frm, ic, ni);
+	}
 	if (ni->ni_flags & IEEE80211_NODE_QOS)
 		frm = ieee80211_add_qos_capability(frm, ic);
 	if ((ic->ic_flags & IEEE80211_F_RSNON) &&
-	    (ni->ni_rsnprotos & IEEE80211_PROTO_WPA))
+		(ni->ni_rsnprotos & IEEE80211_PROTO_WPA)) {
+#ifdef AIRPORT
+		if (ic->ic_rsn_ie_override[1] > 0) {
+			memcpy(frm, ic->ic_rsn_ie_override, 2 + ic->ic_rsn_ie_override[1]);
+			frm += 2 + ic->ic_rsn_ie_override[1];
+		}
+		else
+#endif
 		frm = ieee80211_add_wpa(frm, ic, ni);
+	}
 	if (ic->ic_flags & IEEE80211_F_HTON) {
 		frm = ieee80211_add_htcaps(frm, ic);
 		frm = ieee80211_add_wme_info(frm, ic);
@@ -1805,7 +1811,7 @@ ieee80211_send_mgmt(struct ieee80211com *ic, struct ieee80211_node *ni,
     int type, int arg1, int arg2)
 {
 #define	senderr(_x, _v)	do { ic->ic_stats._v++; ret = _x; goto bad; } while (0)
-	struct ifnet *ifp = &ic->ic_if;
+	struct _ifnet *ifp = &ic->ic_if;
 	mbuf_t m;
 	int ret, timer;
 
